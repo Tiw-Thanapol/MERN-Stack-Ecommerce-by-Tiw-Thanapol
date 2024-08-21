@@ -1,0 +1,214 @@
+const bcrypt = require('bcryptjs')
+//Models
+const User = require('../models/User');
+const Product = require('../models/Product');
+const Cart = require('../models/Cart');
+
+
+const jwt = require('jsonwebtoken');
+
+
+exports.listUsers = async(req,res)=> {
+    try {
+        //code
+        const user = await User.find({}).select('-password').exec();
+        res.send(user)
+    } catch(err){
+        console.log(err)
+        res.status(500).send('Server Error!')
+    }
+};
+exports.readUsers = async(req,res)=> {
+    try {
+        //code
+        const id = req.params.id
+        const user = await User.findOne({_id:id}).select('-password').exec()
+        res.send(user)      
+    } catch(err){
+        console.log(err)
+        res.status(500).send('Server Error!')
+    }
+};
+exports.updateUsers = async(req,res)=> {
+    try {
+        //code
+        var {id , password} = req.body.values
+        
+        // 1 gensalt
+        const salt = await bcrypt.genSalt(10);
+        // 2 encrypt
+        var enPassword = await bcrypt.hash(password, salt);
+        
+        const user = await User.findOneAndUpdate(
+            {_id:id},
+            {password: enPassword}
+        );
+        res.send("hello update users")
+       } catch(err){
+        console.log(err)
+        res.status(500).send('Server Error!')
+    }
+};
+exports.removeUsers = async(req,res)=> {
+    try {
+        //code
+        const id = req.params.id
+        const user = await User.findOneAndDelete({_id:id});
+        res.send(user) 
+       } catch(err){
+        console.log(err)
+        res.status(500).send('Server Error!')
+    }
+};
+exports.changeStatus = async(req,res)=> {
+    try {
+        //code
+        console.log(req.body)
+        const user = await User.findOneAndUpdate(
+            {_id:req.body.id},
+            {enabled:req.body.enabled}
+        );
+        res.send(user) 
+       } catch(err){
+        console.log(err)
+        res.status(500).send('Server Error!')
+    }
+};
+exports.changeRole = async(req,res)=> {
+    try {
+        //code
+        console.log(req.body)
+        const user = await User.findOneAndUpdate(
+            {_id:req.body.id},
+            {role:req.body.role}
+        );
+        res.send(user) 
+       } catch(err){
+        console.log(err)
+        res.status(500).send('Server Error!')
+    }
+};
+
+exports.userCart = async(req,res) => {
+    try{
+        const {cart} = req.body
+        let user = await User.findOne({username:req.user.username}).exec();
+        // สร้าง Array [{1},{2},{3}]
+        let products = []
+        // เช็คตระกร้าสินค้าเก่า
+        let cartOld = await Cart.findOne({orderdBy:user._id}).exec();
+        if (cartOld){
+            cartOld.remove()
+            console.log('remove old cart')
+        }
+        //แต่งสินค้า
+        for(let i =0; i< cart.length; i++){
+            let object={}
+
+            object.product = cart[i]._id
+            object.count = cart[i].count
+            object.price = cart[i].price
+
+            products.push(object)
+        }
+        //หาผลรวมของตระกร้า
+        let cartTotal =0;
+        for (let i =0; i<products.length;i++){
+            //code
+            cartTotal = cartTotal + products[i].price * products[i].count
+        }
+        let newCart = await new Cart({
+            products,
+            cartTotal,
+            orderdBy: user._id
+        }).save();
+
+        console.log(newCart)
+        res.send('userCart Ok')
+    }catch(err){
+        console.log(err)
+        res.status(500).send('userCart Sever Error')
+    }
+}
+
+exports.getUserCart = async(req,res)=>{
+    try{
+        const user = await User
+        .findOne({username:req.user.username})
+        .exec()
+        
+        let cart = await Cart
+        .findOne({orderdBy:user._id})
+        .populate('products.product',"_id title price")
+        .exec()
+
+        const { products, cartTotal } = cart
+        res.json({products, cartTotal})
+    } catch(err){
+        res.status(500).send('getUserCart Error')
+    }
+}
+    
+/*
+exports.userCart = async (req, res) => {
+    try {
+      const { cart } = req.body;
+  
+      // Check User
+      let user = await User.findOne({ username: req.user.username }).exec();
+      // สร้าง array [{1},{2},{3}]
+      let products = [];
+      // Check ตะกร้าสินค้าอันเก่า
+      let cartOld = await Cart.findOne({ orderdBy: user._id }).exec();
+      if (cartOld) {
+          cartOld.remove();
+        console.log("remove old cart");
+      }
+      //แต่งสินค้า
+      for (let i = 0; i < cart.length; i++) {
+        let object = {};
+  
+        object.product = cart[i]._id;
+        object.count = cart[i].count;
+        object.price = cart[i].price;
+  
+        // {3}
+        products.push(object);
+      }
+      // หาผลรวมของตะกร้า
+      let cartTotal = 0;
+      for (let i = 0; i < products.length; i++) {
+        //code
+        cartTotal = cartTotal + products[i].price * products[i].count;
+      }
+  
+      let newCart = await new Cart({
+        products,
+        cartTotal,
+        orderdBy: user._id,
+      }).save();
+  
+      console.log(newCart);
+      res.send("userCart Ok");
+    } catch (err) {
+      console.log(err);
+      res.status(500).send("userCart Server Error");
+    }
+  };
+  
+  exports.getUserCart = async (req, res) => {
+    try {
+      const user = await User.findOne({ username: req.user.username }).exec();
+  
+      let cart = await Cart.findOne({ orderdBy: user._id })
+        .populate("products.product", "_id title price")
+        .exec();
+  
+      const { products, cartTotal } = cart;
+      res.json({ products, cartTotal });
+    } catch (err) {
+      res.status(500).send("getUserCart Error");
+    }
+  };
+
+  */
